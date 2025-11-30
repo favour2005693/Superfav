@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Minimal E‑Commerce (PWA) — Demo</title>
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="stylesheet" href="style/style.css">
+</head>
+<body>
+  <header class="appbar">
+    <div class="brand">
+      <div class="logo">E</div>
+      <div>
+        <div style="font-weight:700;color:#fff">Demo Shop</div>
+        <div class="small muted">Local demo • no real payments</div>
+      </div>
+    </div>
+    <nav class="actions">
+      <div id="userBadge" class="small muted">Not signed in</div>
+      <button id="signBtn" class="btn">Sign in</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong style="color:#fff">Navigation</strong>
+        <small class="muted">v1.0</small>
+      </div>
+      <div class="nav-item" onclick="showSection('shop')">🛍️ Shop</div>
+      <div class="nav-item" onclick="showSection('orders')">📦 Orders</div>
+      <div class="nav-item" onclick="showSection('profile')">👤 Profile</div>
+      <div class="nav-item" onclick="toggleAdmin()">🔒 Admin</div>
+
+      <hr style="margin:12px 0;border-color:rgba(255,255,255,0.04)">
+
+      <div style="margin-top:8px">
+        <div class="small muted">Tip</div>
+        <div class="small">Sign up with username <code>admin</code> for admin tools.</div>
+      </div>
+    </aside>
+
+    <section id="contentArea" class="card fade">
+      <!-- dynamic content injected here -->
+    </section>
+  </main>
+
+  <!-- Cart (floating) -->
+  <div id="cart" class="cart card" style="display:none">
+    <h4>Your Cart</h4>
+    <div id="cartList" class="cart-list"></div>
+    <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+      <div><strong>Total:</strong> <span id="cartTotal">$0</span></div>
+      <div><button class="btn" onclick="checkout()">Checkout</button></div>
+    </div>
+  </div>
+
+  <template id="productTpl">
+    <div class="product">
+      <img alt="product">
+      <div class="product-body">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong class="p-title"></strong>
+          <div class="p-price"></div>
+        </div>
+        <div class="small p-desc"></div>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button class="btn addBtn">Add</button>
+          <button class="ghost" onclick="viewProduct()">View</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="Script/script.js"></script>
+</body>
+</html>

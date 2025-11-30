@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shop — Frontend-only e‑commerce (static)</title>
+  <style>
+    :root{--max:1000px;--accent:#0ea5a4}
+    body{font-family:Inter,system-ui,Segoe UI,Arial;margin:0;padding:20px;background:#f7faf9;color:#0f172a}
+    .wrap{max-width:var(--max);margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between}
+    h1{margin:0 0 12px}
+    .products{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+    .card{background:white;border-radius:10px;padding:12px;box-shadow:0 6px 18px rgba(12,15,22,0.06)}
+    img{width:100%;height:150px;object-fit:cover;border-radius:6px}
+    .price{font-weight:700}
+    .cart{position:fixed;right:16px;bottom:16px;background:var(--accent);color:white;padding:10px 14px;border-radius:10px;box-shadow:0 6px 18px rgba(12,15,22,0.12);cursor:pointer}
+    .cart-count{background:#083737;padding:4px 8px;border-radius:999px;margin-left:8px}
+    .cart-panel{position:fixed;right:16px;bottom:70px;width:320px;max-height:70vh;overflow:auto}
+    button{background:transparent;border:1px solid #e6edf0;padding:8px 10px;border-radius:8px;cursor:pointer}
+    .btn-primary{background:var(--accent);color:white;border:0}
+    .small{font-size:13px;color:#334155}
+    footer{margin-top:30px;color:#475569}
+    .note{background:#fff7ed;padding:10px;margin:10px 0;border-radius:8px}
+    .actions{display:flex;gap:8px;margin-top:10px}
+    a.link{color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>My Static Shop</h1>
+        <div class="small">Static e‑commerce demo — payments without a custom backend</div>
+      </div>
+      <div>
+        <div class="small">Currency: <strong id="currency">USD</strong></div>
+      </div>
+    </header>
+
+    <section>
+      <div class="note">
+        This site is fully static. It shows products, keeps a cart in the browser, and redirects customers to payment links handled by payment providers (Stripe Payment Links or PayPal.Me). See notes below for limitations and setup.
+      </div>
+
+      <div id="products" class="products"></div>
+
+      <div class="cart" id="cartBtn">Cart <span class="cart-count" id="cartCount">0</span></div>
+      <div class="cart-panel" id="cartPanel" style="display:none"></div>
+
+      <footer>
+        <p>How it pays: choose a product's "Buy" button to go to a pre-made Stripe Payment Link (you create on Stripe Dashboard) or use PayPal.Me to pay the cart total. Both approaches avoid running your own server. See docs linked in the chat for more details.</p>
+      </footer>
+    </section>
+  </div>
+
+  <script>
+  // ----------------------------
+  // CONFIG
+  // ----------------------------
+  // 1) Define your products here. For each product you can optionally provide a stripePaymentLink.
+  //    To accept simple client-only one-click payments without a backend: create a Stripe "Payment Link" in the Stripe dashboard
+  //    for each product and paste the URL here. (See Stripe Payment Links docs.)
+  // 2) Optionally set PAYPAL_ME_USERNAME to allow paying the whole cart via PayPal.Me (constructed URL will include amount).
+  //    Example PayPal.Me URL: https://paypal.me/yourname/25USD (see PayPal.Me docs).
+  // ----------------------------
+
+  const CURRENCY = 'USD'; // used for display + paypal.me amount code
+  const PAYPAL_ME_USERNAME = ''; // put your paypal.me username here (no https prefix), e.g. 'yourname'
+
+  const PRODUCTS = [
+    {
+      id: 'p1',
+      title: 'Vintage T‑shirt',
+      price: 25.00,
+      image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=1',
+      stripePaymentLink: '' // <-- paste Stripe Payment Link URL for single-product 'Buy now' behavior
+    },
+    {
+      id: 'p2',
+      title: 'Handmade Mug',
+      price: 15.00,
+      image: 'https://images.unsplash.com/photo-1526318472351-c75fcf070b3b?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=2',
+      stripePaymentLink: ''
+    },
+    {
+      id: 'p3',
+      title: 'Sticker Pack (5)',
+      price: 5.00,
+      image: 'https://images.unsplash.com/photo-1526312707004-6f2f4c3a0f3b?q=80&w=800&auto=format&fit=crop&ixlib=rb-4.0.3&s=3',
+      stripePaymentLink: ''
+    }
+  ];
+
+  // ----------------------------
+  // App state & helpers
+  // ----------------------------
+  const $products = document.getElementById('products');
+  const $cartBtn = document.getElementById('cartBtn');
+  const $cartCount = document.getElementById('cartCount');
+  const $cartPanel = document.getElementById('cartPanel');
+  const $currency = document.getElementById('currency');
+  $currency.textContent = CURRENCY;
+
+  let cart = JSON.parse(localStorage.getItem('cart_v1') || '{}');
+
+  function saveCart(){ localStorage.setItem('cart_v1', JSON.stringify(cart)); updateCartUI(); }
+  function updateCartUI(){
+    const qty = Object.values(cart).reduce((s,x)=>s+x,0);
+    $cartCount.textContent = qty;
+  }
+
+  function renderProducts(){
+    $products.innerHTML = PRODUCTS.map(p=>`
+      <div class="card">
+        <img src="${p.image}" alt="${p.title}">
+        <h3>${p.title}</h3>
+        <div class="price">${p.price.toFixed(2)} ${CURRENCY}</div>
+        <div class="small">ID: ${p.id}</div>
+        <div class="actions">
+          <button onclick="addToCart('${p.id}')">Add to cart</button>
+          <button class="btn-primary" onclick="buyNow('${p.id}')">Buy</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.addToCart = function(id){ cart[id] = (cart[id] || 0) + 1; saveCart(); }
+  window.buyNow = function(id){
+    // If product has a stripePaymentLink configured, redirect to it.
+    const p = PRODUCTS.find(x=>x.id===id);
+    if(p && p.stripePaymentLink){
+      // redirect customer to Stripe-hosted Payment Link (pre-created in your Stripe Dashboard).
+      window.location.href = p.stripePaymentLink;
+      return;
+    }
+    // fallback: add to cart and open cart panel
+    addToCart(id);
+    showCartPanel();
+  }
+
+  function cartItems(){
+    return Object.keys(cart).map(id=>{
+      const product = PRODUCTS.find(p=>p.id===id);
+      return { id, quantity: cart[id], product };
+    }).filter(x=>x.product);
+  }
+
+  function cartTotal(){
+    return cartItems().reduce((sum,it)=>sum + it.quantity * it.product.price, 0);
+  }
+
+  function showCartPanel(){
+    $cartPanel.style.display = 'block';
+    const items = cartItems();
+    if(items.length===0){ $cartPanel.innerHTML = '<div class="card">Your cart is empty.</div>'; return; }
+
+    $cartPanel.innerHTML = `
+      <div class="card">
+        <h3>Cart</h3>
+        <div class="small">${items.length} different item(s)</div>
+        <div style="margin-top:10px">${items.map(it=>`
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+            <div style="flex:1"><strong>${it.product.title}</strong><div class='small'>${it.product.price.toFixed(2)} ${CURRENCY} × ${it.quantity}</div></div>
+            <div>
+              <button onclick="changeQty('${it.id}', -1)">-</button>
+              <button onclick="changeQty('${it.id}', 1)">+</button>
+              <button onclick="removeItem('${it.id}')">remove</button>
+            </div>
+          </div>
+        `).join('')}</div>
+
+        <div style="margin-top:12px"><strong>Total: ${cartTotal().toFixed(2)} ${CURRENCY}</strong></div>
+
+        <div class="actions">
+          <button onclick="checkoutPayPal()">Pay with PayPal</button>
+          <button onclick="checkoutStripeCombos()">Pay with Stripe (per-product links)</button>
+          <button class="btn-primary" onclick="checkoutEmail()">Place Order (email)</button>
+        </div>
+
+        <div style="margin-top:8px;font-size:13px;color:#334155">Note: Combined Stripe Checkout (single hosted session for cart) requires a server to create a Checkout Session. This demo can either 1) redirect to each product's pre-made Stripe Payment Link one-by-one, or 2) redirect customer to PayPal.Me with the total amount. See chat notes for details.</div>
+      </div>
+    `;
+  }
+
+  function changeQty(id, delta){
+    cart[id] = (cart[id] || 0) + delta;
+    if(cart[id] <= 0) delete cart[id];
+    saveCart();
+    showCartPanel();
+  }
+  function removeItem(id){ delete cart[id]; saveCart(); showCartPanel(); }
+
+  // Option A: PayPal.Me redirect — constructs a simple PayPal.Me link with amount+currency and opens it.
+  function checkoutPayPal(){
+    if(!PAYPAL_ME_USERNAME){ alert('No PAYPAL_ME_USERNAME configured in the site config. Open the site code and set PAYPAL_ME_USERNAME to your paypal.me username.'); return; }
+    const total = cartTotal().toFixed(2);
+    // PayPal.Me wants amount without decimal grouping and optional currency code appended: e.g. paypal.me/username/25USD
+    const amountSegment = encodeURIComponent(total + CURRENCY);
+    const url = `https://paypal.me/${encodeURIComponent(PAYPAL_ME_USERNAME)}/${amountSegment}`;
+    window.location.href = url;
+  }
+
+  // Option B: Stripe per-product links — attempt to redirect to each product's payment link in sequence.
+  // This is a simple approach for shops that created a Stripe Payment Link per product. It opens each product's link in a new tab.
+  function checkoutStripeCombos(){
+    const items = cartItems();
+    const missing = items.filter(it=>!it.product.stripePaymentLink);
+    if(missing.length>0){
+      alert('Some items do not have a stripePaymentLink configured. Either set stripePaymentLink for each product in the site config, or remove them from cart.');
+      return;
+    }
+    // For each quantity, open payment link(s). NOTE: this requires the customer to complete each purchase separately — not ideal UX but works without a backend.
+    for(const it of items){
+      for(let i=0;i<it.quantity;i++){
+        window.open(it.product.stripePaymentLink, '_blank');
+      }
+    }
+    alert('Payment pages opened in new tabs. After completing payments, you can close this window.');
+  }
+
+  // Option C: Email order (no payment) — opens user's email client with pre-filled order details.
+  function checkoutEmail(){
+    const items = cartItems();
+    if(items.length===0){ alert('Cart empty'); return; }
+    const lines = items.map(it=>`${it.product.title} × ${it.quantity} — ${ (it.product.price*it.quantity).toFixed(2) } ${CURRENCY}`);
+    const body = encodeURIComponent(`Order from Static Shop\n\n${lines.join('\n')}\n\nTotal: ${cartTotal().toFixed(2)} ${CURRENCY}\n\nCustomer info:\nName:\nAddress:\nPhone:\n`);
+    const subject = encodeURIComponent('New order — Static Shop');
+    window.location.href = `mailto:you@yourstore.example?subject=${subject}&body=${body}`;
+  }
+
+  // UI wiring
+  $cartBtn.addEventListener('click', ()=>{ showCartPanel(); });
+  document.addEventListener('click', (e)=>{ if(!e.target.closest('.cart-panel') && !e.target.closest('.cart')){ /* keep open */ } });
+
+  // initial render
+  renderProducts(); updateCartUI();
+  </script>
+</body>
+</html>
